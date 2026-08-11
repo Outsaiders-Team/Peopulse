@@ -20,7 +20,6 @@ __pycache__/
 venv/
 .venv/
 env/
-/backend/venv/
 
 # Pytest & Coverage
 .pytest_cache/
@@ -28,17 +27,21 @@ env/
 htmlcov/
 
 # ==============================================================================
-# Frontend (React / Vue / Node.js)
+# Frontend (Next.js / Node.js)
 # ==============================================================================
 # Dependencies
 node_modules/
-/frontend/node_modules/
 
 # Production builds
 dist/
 build/
-/frontend/build/
-/frontend/dist/
+
+# Next.js
+/.next/
+/out/
+next-env.d.ts
+*.tsbuildinfo
+.vercel
 
 # ==============================================================================
 # Security & Secrets (CRITICAL)
@@ -65,6 +68,10 @@ secrets.json
 # CUSTOM ADDITIONS
 # Add any specific files, temporary logs, or testing datasets you want to ignore
 # ==============================================================================
+
+# Local docs & design tooling
+docs/
+.impeccable/
 
 # e.g., my_test_script.py
 # e.g., dummy_lgu_data.csv

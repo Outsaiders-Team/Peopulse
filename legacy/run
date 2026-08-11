@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+# Start frontend + backend together. Usage (from repo root): ./run
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")" && pwd)"
+BACKEND_PORT="${BACKEND_PORT:-8000}"
+FRONTEND_PORT="${FRONTEND_PORT:-3456}"
+PIDS=()
+
+free_port() {
+  local port="$1"
+  local pids
+  pids="$(lsof -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null || true)"
+  if [[ -n "$pids" ]]; then
+    echo "Freeing port $port (pid: $pids)…"
+    # shellcheck disable=SC2086
+    kill $pids 2>/dev/null || true
+    sleep 0.2
+    pids="$(lsof -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null || true)"
+    if [[ -n "$pids" ]]; then
+      # shellcheck disable=SC2086
+      kill -9 $pids 2>/dev/null || true
+    fi
+  fi
+}
+
+cleanup() {
+  echo ""
+  echo "Stopping…"
+  for pid in "${PIDS[@]:-}"; do
+    kill "$pid" 2>/dev/null || true
+  done
+  # Also clear the ports — subshell children can outlive $! on Ctrl+C.
+  free_port "$BACKEND_PORT"
+  free_port "$FRONTEND_PORT"
+  wait 2>/dev/null || true
+}
+trap cleanup EXIT INT TERM
+
+# Prefer backend venv if present
+if [[ -x "$ROOT/backend/.venv/bin/uvicorn" ]]; then
+  UVICORN="$ROOT/backend/.venv/bin/uvicorn"
+elif command -v uvicorn >/dev/null 2>&1; then
+  UVICORN="uvicorn"
+else
+  echo "uvicorn not found. From backend/: python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt"
+  exit 1
+fi
+
+# Frontend venv + livereload (created/installed on demand)
+FRONTEND_VENV="$ROOT/frontend/.venv"
+FRONTEND_PYTHON="$FRONTEND_VENV/bin/python"
+if [[ ! -x "$FRONTEND_PYTHON" ]]; then
+  echo "Setting up frontend/.venv…"
+  python3 -m venv "$FRONTEND_VENV"
+fi
+if ! "$FRONTEND_PYTHON" -c "import livereload" 2>/dev/null; then
+  echo "Installing livereload…"
+  "$FRONTEND_PYTHON" -m pip install -q "livereload>=2.7.0"
+fi
+
+free_port "$BACKEND_PORT"
+free_port "$FRONTEND_PORT"
+
+echo "API  → http://127.0.0.1:${BACKEND_PORT}"
+echo "UI   → http://127.0.0.1:${FRONTEND_PORT}  (live reload)"
+echo "Ctrl+C to stop both"
+echo ""
+
+(
+  cd "$ROOT/backend"
+  "$UVICORN" main:app --reload --host 127.0.0.1 --port "$BACKEND_PORT"
+) &
+PIDS+=($!)
+
+(
+  cd "$ROOT/frontend"
+  FRONTEND_PORT="$FRONTEND_PORT" "$FRONTEND_PYTHON" serve.py
+) &
+PIDS+=($!)
+
+wait

@@ -1,0 +1,26 @@
+{
+  "name": "peopulse",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "next": "16.3.0",
+    "openai": "7.4.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "@types/react": "^19.2.8",
+    "@types/react-dom": "^19.2.4",
+    "eslint": "^9.24.0",
+    "eslint-config-next": "16.3.0",
+    "typescript": "^5.9.3"
+  }
+}

@@ -1,0 +1,39 @@
+<div class="page" id="page-output">
+  <div class="shell">
+    <div class="sheet">
+      <div class="sheet-output">
+        <header class="page-head--row">
+          <div>
+            <h1 class="page-title">Here&rsquo;s your summary.</h1>
+            <p class="page-sub" id="output-meta"></p>
+          </div>
+          <button type="button" class="btn-ghost btn-ghost--outline" onclick="goto('upload')">New file</button>
+        </header>
+
+        <section class="takeaway" aria-labelledby="themes-heading">
+          <h2 id="themes-heading" class="section-label">What people said the most</h2>
+          <ul class="theme-list" id="theme-list"></ul>
+        </section>
+
+        <section class="questions-panel" aria-labelledby="questions-heading">
+          <h2 id="questions-heading" class="section-label">By question</h2>
+          <div class="questions" id="questions-list"></div>
+        </section>
+      </div>
+    </div>
+
+    <footer class="output-footer" aria-label="Peopulse">
+      <span class="brand-badge" aria-hidden="true">
+        <img
+          class="brand-badge-img"
+          src="assets/peopulse-mark.png"
+          alt=""
+          width="32"
+          height="32"
+          decoding="async"
+        />
+      </span>
+      Peopulse
+    </footer>
+  </div>
+</div>

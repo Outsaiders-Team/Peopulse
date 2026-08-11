@@ -1,0 +1,75 @@
+<div class="page active" id="page-upload">
+  <div class="shell shell--upload">
+    <div class="frame">
+      <div class="sheet">
+        <div class="sheet-body">
+          <section class="sheet-intro" aria-labelledby="upload-title">
+            <div class="intro-brand" onclick="goto('upload')" role="button" tabindex="0" aria-label="Peopulse home"
+              onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();goto('upload')}">
+              <span class="brand-badge" aria-hidden="true">
+                <img
+                  class="brand-badge-img"
+                  src="assets/peopulse-mark.png"
+                  alt=""
+                  width="32"
+                  height="32"
+                  decoding="async"
+                />
+              </span>
+              Peopulse
+            </div>
+
+            <div class="intro-copy">
+              <h1 class="intro-title" id="upload-title">Free yourself from the feedback pile.</h1>
+              <p class="intro-lede">Upload your form export. Peopulse sums up the long text into a short summary, clear insights, and the positive and negative things people said, so you don&rsquo;t have to read it all.</p>
+            </div>
+          </section>
+
+          <section class="sheet-form" aria-labelledby="upload-form-label">
+            <div class="form-panel">
+              <p class="form-label" id="upload-form-label">Form export</p>
+              <p class="form-hint">Drop a CSV, XLSX, or XLS file anywhere on this page. We will find the big ideas, then sum up each question.</p>
+
+              <div class="upload-slot">
+                <div class="dropzone" id="dz" role="button" tabindex="0" aria-label="Upload feedback file"
+                  onclick="document.getElementById('fi').click()"
+                  onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();document.getElementById('fi').click()}">
+                  <div class="dz-icon" aria-hidden="true">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V5"/><path d="m8 9 4-4 4 4"/><path d="M4 19h16"/></svg>
+                  </div>
+                  <div class="dz-title">Drop your file here</div>
+                  <div class="dz-sub">CSV, XLSX, or XLS &middot; up to 50MB</div>
+                  <span class="btn-ghost">Browse files</span>
+                </div>
+
+                <div class="file-prev" id="fp" hidden
+                  role="button" tabindex="0" aria-label="Replace feedback file"
+                  onclick="document.getElementById('fi').click()"
+                  onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();document.getElementById('fi').click()}">
+                  <div class="file-attachment">
+                    <div class="file-prev-icon" aria-hidden="true">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                    </div>
+                    <div class="file-prev-meta">
+                      <div class="file-prev-name" id="fn"></div>
+                      <div class="file-prev-size" id="fs"></div>
+                    </div>
+                    <button type="button" class="file-prev-rm" onclick="event.stopPropagation();rmFile()" aria-label="Remove file">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                    </button>
+                  </div>
+                  <p class="file-prev-hint">Click or drop a new file to replace</p>
+                </div>
+              </div>
+              <input id="fi" type="file" accept=".csv,.xlsx,.xls" style="display:none" onchange="onFileSelect(event)"/>
+
+              <button type="button" class="btn-primary" id="btn-run" onclick="runAnalysis()" disabled>
+                <span class="btn-run-label">Summarize responses</span>
+              </button>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
