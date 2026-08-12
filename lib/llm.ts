@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import OpenAI from 'openai';
 
-const MODEL = 'inclusionai/ling-3.0-flash:free';
+const MODEL = 'nvidia/nemotron-3-ultra-550b-a55b:free';
 
 let promptCache: string | null = null;
 
