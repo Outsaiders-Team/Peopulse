@@ -741,6 +741,131 @@ body[data-view="output"] .sheet{
 .toast[data-type="success"] .toast-icon{color:#4ADE80;}
 .toast[data-type="error"] .toast-icon{color:#F87171;}
 
+/* Suggestions Panel */
+.suggestions-panel{margin:28px 0;}
+.suggestions-panel > .section-label{margin-bottom:14px;}
+.suggestions-content{
+  display:flex;
+  flex-direction:column;
+  gap:16px;
+}
+
+.suggestion-block{
+  background:var(--surface);
+  border-radius:var(--radius);
+  padding:20px 22px;
+  border-left:4px solid var(--sky);
+}
+.suggestion-block:first-child{
+  background:var(--sky-soft);
+}
+
+.suggestion-subtitle{
+  font-size:0.9375rem;font-weight:700;
+  color:var(--navy);
+  margin-bottom:10px;
+  letter-spacing:-0.01em;
+}
+
+.suggestion-text{
+  font-size:0.95rem;line-height:1.6;
+  color:var(--ink-muted);
+  text-wrap:pretty;
+}
+
+.suggestion-text-bold{
+  font-size:0.95rem;font-weight:700;
+  color:var(--navy);
+  margin-bottom:8px;
+}
+
+.recommendations-list{
+  list-style:none;
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+}
+
+.recommendation-item{
+  display:flex;
+  gap:12px;
+  padding:14px;
+  background:var(--surface-sunken);
+  border-radius:12px;
+  border-left:3px solid var(--sky);
+}
+
+.recommendation-priority{
+  flex:0 0 auto;
+  font-size:0.75rem;font-weight:700;
+  color:#fff;
+  background:var(--sky);
+  padding:4px 8px;
+  border-radius:6px;
+  text-transform:uppercase;
+  white-space:nowrap;
+}
+
+.recommendation-content{
+  flex:1;
+  min-width:0;
+}
+
+.recommendation-action{
+  font-size:0.95rem;font-weight:700;
+  color:var(--navy);
+  margin-bottom:8px;
+}
+
+.recommendation-reason{
+  font-size:0.9rem;line-height:1.55;
+  color:var(--ink-muted);
+  margin-bottom:8px;
+  text-wrap:pretty;
+}
+
+.recommendation-meta{
+  font-size:0.85rem;line-height:1.5;
+  color:var(--ink-muted);
+  display:flex;
+  flex-wrap:wrap;
+  gap:12px;
+}
+
+.metrics-list,
+.limitations-list{
+  list-style:none;
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  padding-left:0;
+}
+
+.metrics-list li,
+.limitations-list li{
+  font-size:0.95rem;
+  line-height:1.6;
+  color:var(--ink);
+  padding-left:20px;
+  position:relative;
+  text-wrap:pretty;
+}
+
+.metrics-list li::before{
+  content:'✓';
+  position:absolute;
+  left:0;
+  color:var(--positive-ink);
+  font-weight:700;
+}
+
+.limitations-list li::before{
+  content:'⚠';
+  position:absolute;
+  left:2px;
+  color:#F59E0B;
+}
+
 @media (max-width:900px){
   .shell--upload{
     min-height:auto;
