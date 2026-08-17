@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { buildFeedbackByQuestion, DataPipelineError, getFeedbackColumns } from '@/lib/data-pipeline';
 import { apiError } from '@/lib/api-error';
-import { analyzeFeedback } from '@/lib/llm';
+import { analyzeFeedback, generateRecommendations } from '@/lib/llm';
 import { normalizeAnalysisPayload } from '@/lib/normalize';
 import { parseCsv, parseXlsx } from '@/lib/parse';
 import type { AnalysisResult } from '@/lib/types';
@@ -105,11 +105,39 @@ export async function POST(request: NextRequest) {
       continue;
     }
 
+    // Generate recommendations based on the analysis
+    let suggestionsResponse: string = '';
+    try {
+      suggestionsResponse = await generateRecommendations(normalizedAnalysis, table.rowCount);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.warn(`Failed to generate recommendations: ${message}`);
+      // Continue without recommendations rather than failing the entire request
+    }
+
+    // Parse recommendations
+    let suggestions = undefined;
+    if (suggestionsResponse) {
+      try {
+        const suggestionsMatch = suggestionsResponse.match(JSON_OBJECT_RE);
+        const cleanSuggestionsJson = suggestionsMatch ? suggestionsMatch[0] : null;
+        if (cleanSuggestionsJson) {
+          suggestions = JSON.parse(cleanSuggestionsJson);
+        }
+      } catch (err) {
+        console.warn('Failed to parse recommendations JSON:', err);
+        // Continue without recommendations rather than failing
+      }
+    }
+
     return NextResponse.json<AnalysisResult>({
       status: 'success',
       filename,
       rows_detected: table.rowCount,
-      analysis: normalizedAnalysis,
+      analysis: {
+        ...normalizedAnalysis,
+        suggestions,
+      },
     });
   }
 

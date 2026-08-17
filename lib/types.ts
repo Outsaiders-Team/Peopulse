@@ -12,9 +12,29 @@ export type QuestionAnalysis = {
   also_worth_noting: AnalysisPoint[];
 };
 
+export type Recommendation = {
+  priority: number;
+  action: string;
+  reason: string;
+  timeframe: 'Immediate' | 'Short-term' | 'Long-term';
+  target: string;
+};
+
+export type Recommendations = {
+  overall_assessment: string;
+  key_issue: {
+    title: string;
+    explanation: string;
+  };
+  recommendations: Recommendation[];
+  monitoring_metrics: string[];
+  data_limitations: string[];
+};
+
 export type AnalysisPayload = {
   top_themes: AnalysisPoint[];
   questions: QuestionAnalysis[];
+  suggestions?: Recommendations;
 };
 
 export type AnalysisResult = {
