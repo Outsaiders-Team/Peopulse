@@ -3,9 +3,8 @@ import path from 'path';
 import OpenAI from 'openai';
 import type { AnalysisPayload } from './types';
 
-// Rotate across a few free models — if one is queued/rate-limited on a given
-// attempt, the next retry tries a different one instead of hammering the
-// same congested model. Order = preference; put your best-performing ones first.
+const GEMINI_MODEL = 'gemini-3-flash-preview';
+
 const FREE_MODELS = [
   'nvidia/nemotron-3-ultra-550b-a55b:free',
   'inclusionai/ling-3.0-flash:free',
@@ -13,9 +12,6 @@ const FREE_MODELS = [
   'mistralai/mistral-7b-instruct:free',
 ];
 
-// Free-tier requests can hang far longer than a paid model would. Cap each
-// individual attempt so a stuck request fails fast and the retry loop in
-// the route handler can move on to the next model instead of stalling.
 const REQUEST_TIMEOUT_MS = 15_000;
 
 let promptCache: string | null = null;
@@ -50,110 +46,189 @@ function buildUserContent(feedbackByQuestion: Record<string, string[]>): string 
   return `Here is the raw citizen feedback, grouped by question:\n\n${sections.join('\n\n')}`;
 }
 
+/**
+ * Optimized: Feeds a concise, compressed summary to the recommendations prompt
+ * instead of duplicating verbose sub-lists, drastically cutting prompt processing time.
+ */
 function buildRecommendationsUserContent(
   analysis: AnalysisPayload,
   rowsDetected: number
 ): string {
-  return `Based on the analysis of ${rowsDetected} citizen feedback entries, here is the structured analysis:
-
-Top Themes:
-${analysis.top_themes.map((t) => `- [${t.sentiment}] ${t.text}`).join('\n')}
-
-Per-Question Breakdown:
-${analysis.questions
-  .map(
-    (q) => `
-Question: "${q.question}"
+  const themes = analysis.top_themes.map((t) => `- [${t.sentiment}] ${t.text}`).join('\n');
+  const questionsSummary = analysis.questions
+    .map(
+      (q) => `Q: "${q.question}"
 Summary: ${q.summary}
-Heard Often:
-${q.heard_often.map((p) => `  - [${p.sentiment}] ${p.text}`).join('\n')}
-Also Worth Noting:
-${q.also_worth_noting.map((p) => `  - [${p.sentiment}] ${p.text}`).join('\n') || '  (none)'}
-`
-  )
-  .join('\n---\n')}
+Key Points: ${q.heard_often.slice(0, 3).map((p) => p.text).join('; ')}`
+    )
+    .join('\n---\n');
 
-Please provide actionable recommendations for an LGU to address the issues and opportunities identified in this feedback.`;
+  return `Feedback entries: ${rowsDetected}
+Top Themes:
+${themes}
+
+Per-Question Insights:
+${questionsSummary}
+
+Provide concise, high-impact, actionable recommendations for an LGU.`;
 }
 
 /**
- * Sends grouped feedback to the LLM and returns the raw completion text.
- * Faithful port of `backend/services/llm_analytics.py::analyze_feedback`.
- * Network/API errors are swallowed and returned as a `{"error": "..."}`
- * JSON string so the caller's regex/JSON parsing + retry loop still applies;
- * only a missing prompt file throws (matches the Python config-error path).
- *
- * `attempt` selects which free model to use this round (round-robin over
- * FREE_MODELS) — pass the route handler's retry counter here so each retry
- * lands on a different model instead of re-hitting the one that just failed
- * or rate-limited.
+ * Direct Gemini fetch with disabled thinking budget for zero-latency starts.
  */
+async function callGeminiDirect(
+  systemPrompt: string,
+  userContent: string,
+  maxOutputTokens = 2048,
+  responseMimeType?: string
+): Promise<string> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error('GEMINI_API_KEY environment variable is missing');
+  }
+
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
+
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    body: JSON.stringify({
+      systemInstruction: {
+        parts: [{ text: systemPrompt }],
+      },
+      contents: [
+        {
+          role: 'user',
+          parts: [{ text: userContent }],
+        },
+      ],
+      generationConfig: {
+        temperature: 0.1, // Lower temperature yields faster token convergence
+        maxOutputTokens,
+        ...(responseMimeType ? { responseMimeType } : {}),
+        // Disable internal thinking phase to begin immediate output streaming
+        thinkingConfig: {
+          thinkingBudget: 0,
+        },
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    throw new Error(`Gemini API HTTP ${response.status}: ${errorBody}`);
+  }
+
+  const data = await response.json();
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+  if (!text) {
+    throw new Error('Gemini API returned an empty or malformed completion');
+  }
+
+  return text;
+}
+
+async function callOpenRouterFallback(
+  systemPrompt: string,
+  userContent: string,
+  model: string,
+  max_tokens = 2048
+): Promise<string> {
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (!apiKey) {
+    throw new Error('OPENROUTER_API_KEY environment variable is missing');
+  }
+
+  const client = new OpenAI({
+    baseURL: 'https://openrouter.ai/api/v1',
+    apiKey,
+    timeout: REQUEST_TIMEOUT_MS,
+  });
+
+  const response = await client.chat.completions.create({
+    model,
+    max_tokens,
+    temperature: 0.2,
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userContent },
+    ],
+  });
+
+  return response.choices[0]?.message?.content ?? '';
+}
+
 export async function analyzeFeedback(
   feedbackByQuestion: Record<string, string[]>,
   attempt = 0
 ): Promise<string> {
   const systemPrompt = loadSystemPrompt();
-  const model = FREE_MODELS[attempt % FREE_MODELS.length];
+  const userContent = buildUserContent(feedbackByQuestion);
 
-  const client = new OpenAI({
-    baseURL: 'https://openrouter.ai/api/v1',
-    apiKey: process.env.OPENROUTER_API_KEY,
-    timeout: REQUEST_TIMEOUT_MS,
-  });
-
+  console.log(`[LLM Engine] [Attempt ${attempt}] Triggering Primary: Google Gemini (${GEMINI_MODEL})...`);
   try {
-    const response = await client.chat.completions.create({
-      model,
-      max_tokens: 4096,
-      temperature: 0.3,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: buildUserContent(feedbackByQuestion) },
-      ],
-    });
+    // 2048 tokens max for analysis
+    const rawResult = await callGeminiDirect(systemPrompt, userContent, 2048, 'application/json');
+    console.log(`\x1b[32m✔ [LLM Engine] Analysis resolved via Primary: Google Gemini (${GEMINI_MODEL})\x1b[0m`);
+    return rawResult;
+  } catch (geminiErr) {
+    const geminiErrorMsg = geminiErr instanceof Error ? geminiErr.message : String(geminiErr);
+    console.warn(
+      `\x1b[33m⚠ [LLM Engine] Primary Gemini failed: "${geminiErrorMsg}". Falling back to OpenRouter...\x1b[0m`
+    );
 
-    return response.choices[0]?.message?.content ?? '';
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    return JSON.stringify({ error: `(lib/llm.ts) [${model}] API connection failed: ${message}` });
+    const fallbackModel = FREE_MODELS[attempt % FREE_MODELS.length];
+    console.log(`[LLM Engine] Triggering Fallback: OpenRouter (${fallbackModel})...`);
+
+    try {
+      const rawResult = await callOpenRouterFallback(systemPrompt, userContent, fallbackModel, 2048);
+      console.log(`\x1b[32m✔ [LLM Engine] Analysis resolved via Fallback: OpenRouter (${fallbackModel})\x1b[0m`);
+      return rawResult;
+    } catch (fallbackErr) {
+      const fallbackErrorMsg = fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr);
+      console.error(`\x1b[31m✖ [LLM Engine] Both Primary and Fallback failed.\x1b[0m`);
+
+      return JSON.stringify({
+        error: `(lib/llm.ts) Both models failed. Gemini: [${geminiErrorMsg}] | OpenRouter [${fallbackModel}]: [${fallbackErrorMsg}]`,
+      });
+    }
   }
 }
 
-/**
- * Generates recommendations based on the analysis results.
- * Uses the recommendations prompt and analysis data to generate actionable
- * suggestions for LGU program implementers.
- */
 export async function generateRecommendations(
   analysis: AnalysisPayload,
   rowsDetected: number,
   attempt = 0
 ): Promise<string> {
   const systemPrompt = loadRecommendationsPrompt();
-  const model = FREE_MODELS[attempt % FREE_MODELS.length];
+  const userContent = buildRecommendationsUserContent(analysis, rowsDetected);
 
-  const client = new OpenAI({
-    baseURL: 'https://openrouter.ai/api/v1',
-    apiKey: process.env.OPENROUTER_API_KEY,
-    timeout: REQUEST_TIMEOUT_MS,
-  });
-
+  console.log(`[LLM Engine] Triggering Primary for Recommendations: Google Gemini (${GEMINI_MODEL})...`);
   try {
-    const response = await client.chat.completions.create({
-      model,
-      max_tokens: 2048,
-      temperature: 0.3,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: buildRecommendationsUserContent(analysis, rowsDetected) },
-      ],
-    });
+    // Recommendations only need ~1024 tokens max
+    const rawResult = await callGeminiDirect(systemPrompt, userContent, 1024, 'application/json');
+    console.log(`\x1b[32m✔ [LLM Engine] Recommendations generated via Gemini (${GEMINI_MODEL})\x1b[0m`);
+    return rawResult;
+  } catch (geminiErr) {
+    const geminiErrorMsg = geminiErr instanceof Error ? geminiErr.message : String(geminiErr);
+    console.warn(
+      `\x1b[33m⚠ [LLM Engine] Gemini recommendations failed: "${geminiErrorMsg}". Falling back to OpenRouter...\x1b[0m`
+    );
 
-    return response.choices[0]?.message?.content ?? '';
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    return JSON.stringify({
-      error: `(lib/llm.ts) [${model}] API connection failed: ${message}`,
-    });
+    const fallbackModel = FREE_MODELS[attempt % FREE_MODELS.length];
+    try {
+      const rawResult = await callOpenRouterFallback(systemPrompt, userContent, fallbackModel, 1024);
+      console.log(`\x1b[32m✔ [LLM Engine] Recommendations generated via OpenRouter (${fallbackModel})\x1b[0m`);
+      return rawResult;
+    } catch (fallbackErr) {
+      const fallbackErrorMsg = fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr);
+      return JSON.stringify({
+        error: `(lib/llm.ts) Recommendations failed. Gemini: [${geminiErrorMsg}] | OpenRouter: [${fallbackErrorMsg}]`,
+      });
+    }
   }
 }
