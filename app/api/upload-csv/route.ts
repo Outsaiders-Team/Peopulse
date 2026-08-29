@@ -4,7 +4,7 @@ import { apiError } from '@/lib/api-error';
 import { analyzeFeedback, generateRecommendations } from '@/lib/llm';
 import { normalizeAnalysisPayload } from '@/lib/normalize';
 import { parseCsv, parseXlsx } from '@/lib/parse';
-import type { AnalysisResult } from '@/lib/types';
+import type { AnalysisResult, Recommendations } from '@/lib/types';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -158,14 +158,14 @@ export async function POST(request: NextRequest) {
     }
     console.timeEnd(`Attempt ${attempt + 1} - Step 3: generateRecommendations`);
 
-    // Step 4: Parse recommendations with automatic sanitization
-    let suggestions = undefined;
+    // Step 4: Parse recommendations with explicit typing
+    let suggestions: Recommendations | undefined = undefined;
     if (suggestionsResponse) {
       try {
         const suggestionsMatch = suggestionsResponse.match(JSON_OBJECT_RE);
         const cleanSuggestionsJson = suggestionsMatch ? suggestionsMatch[0] : null;
         if (cleanSuggestionsJson) {
-          suggestions = safeParseJson(cleanSuggestionsJson);
+          suggestions = safeParseJson(cleanSuggestionsJson) as Recommendations;
         }
       } catch (err) {
         console.warn('Failed to parse recommendations JSON:', err);
