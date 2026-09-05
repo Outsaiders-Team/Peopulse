@@ -18,6 +18,7 @@ export function AppShell() {
   const showToast = useToast();
 
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
+  const [activeAnalysisId, setActiveAnalysisId] = useState<string | null>(null);
   const [restored, setRestored] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -46,15 +47,43 @@ export function AppShell() {
     }
   }, []);
 
+  // Hydrate local cache and check for pending saves from OAuth redirects
   useEffect(() => {
     const stored = loadAnalysisResult();
     if (stored) setAnalysis(stored);
     setRestored(true);
-  }, []);
 
-  useEffect(() => {
-    fetchHistory();
-  }, [fetchHistory]);
+    const processPendingSave = async () => {
+      const pendingData = sessionStorage.getItem('pendingAnalysis');
+      if (!pendingData) {
+        fetchHistory();
+        return;
+      }
+
+      const supabase = createClient();
+      const {
+        data: { session: activeSession },
+      } = await supabase.auth.getSession();
+
+      if (activeSession) {
+        const payload = JSON.parse(pendingData);
+        const { error } = await supabase.from('analyses').insert({
+          user_id: activeSession.user.id,
+          payload: payload,
+        });
+
+        if (!error) {
+          sessionStorage.removeItem('pendingAnalysis');
+          showToast('Your pending analysis has been saved to your account.');
+          fetchHistory();
+        }
+      } else {
+        fetchHistory();
+      }
+    };
+
+    processPendingSave();
+  }, [fetchHistory, showToast]);
 
   useEffect(() => {
     if (restored && requestedView === 'output' && !analysis) {
@@ -79,6 +108,7 @@ export function AppShell() {
         const result = file ? await uploadCsv(file) : await fetchSampleAnalysis();
         saveAnalysisResult(result);
         setAnalysis(result);
+        setActiveAnalysisId(null);
         router.push('?view=output');
       } catch (err) {
         showToast(err instanceof Error ? err.message : 'Analysis failed');
@@ -90,24 +120,50 @@ export function AppShell() {
   );
 
   const handleNewFile = useCallback(() => {
+    setActiveAnalysisId(null);
     router.push('/');
   }, [router]);
 
   const handleHistorySelect = useCallback(
-    (historicalPayload: AnalysisResult) => {
-      saveAnalysisResult(historicalPayload);
-      setAnalysis(historicalPayload);
+    (item: any) => {
+      saveAnalysisResult(item.payload);
+      setAnalysis(item.payload);
+      setActiveAnalysisId(item.id);
       router.push('?view=output');
     },
     [router]
   );
+
+  const handleDeleteSuccess = useCallback(
+    (deletedId: string) => {
+      setHistory((prev) => prev.filter((item) => item.id !== deletedId));
+      if (activeAnalysisId === deletedId) {
+        setActiveAnalysisId(null);
+        router.push('/');
+      }
+    },
+    [activeAnalysisId, router]
+  );
+
+  const isAlreadySaved =
+    Boolean(activeAnalysisId) ||
+    Boolean(
+      analysis &&
+        history.some(
+          (h) =>
+            h.payload?.filename === analysis?.filename &&
+            h.payload?.rows_detected === analysis?.rows_detected
+        )
+    );
 
   return (
     <div style={{ display: 'flex', width: '100vw', minHeight: '100vh', overflowX: 'hidden' }}>
       {session && (
         <HistorySidebar
           history={history}
+          activeId={activeAnalysisId}
           onSelect={handleHistorySelect}
+          onDeleteSuccess={handleDeleteSuccess}
         />
       )}
 
@@ -115,6 +171,7 @@ export function AppShell() {
         {view === 'output' && analysis ? (
           <OutputView
             analysis={analysis}
+            isAlreadySaved={isAlreadySaved}
             onNewFile={handleNewFile}
             onSaveSuccess={fetchHistory}
           />

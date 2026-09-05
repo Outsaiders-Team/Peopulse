@@ -1,15 +1,25 @@
 'use client';
 
+import { useState } from 'react';
 import { createClient } from '@/utils/supabase/client';
+import { useToast } from './ToastProvider';
 
 export default function SaveButton({
   analysisPayload,
+  isAlreadySaved,
   onSaveSuccess,
 }: {
   analysisPayload: any;
+  isAlreadySaved?: boolean;
   onSaveSuccess?: () => void;
 }) {
+  const showToast = useToast();
+  const [saving, setSaving] = useState(false);
+
   const handleSave = async () => {
+    if (isAlreadySaved || saving) return;
+
+    setSaving(true);
     const supabase = createClient();
     const {
       data: { session },
@@ -32,11 +42,13 @@ export default function SaveButton({
       payload: analysisPayload,
     });
 
+    setSaving(false);
+
     if (!error) {
-      alert('Analysis saved successfully.');
+      showToast('Analysis saved successfully.');
       onSaveSuccess?.();
     } else {
-      alert(`Failed to save analysis: ${error.message}`);
+      showToast(`Failed to save: ${error.message}`);
     }
   };
 
@@ -44,9 +56,14 @@ export default function SaveButton({
     <button
       type="button"
       onClick={handleSave}
+      disabled={isAlreadySaved || saving}
       className="btn-ghost btn-ghost--outline"
+      style={{
+        opacity: isAlreadySaved ? 0.6 : 1,
+        cursor: isAlreadySaved ? 'default' : 'pointer',
+      }}
     >
-      Save analysis
+      {isAlreadySaved ? 'Saved' : saving ? 'Saving...' : 'Save analysis'}
     </button>
   );
 }

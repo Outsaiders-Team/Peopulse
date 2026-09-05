@@ -8,14 +8,20 @@ import { QuestionAccordionItem } from './QuestionAccordionItem';
 
 export function OutputView({
   analysis,
+  isAlreadySaved,
   onNewFile,
   onSaveSuccess,
 }: {
   analysis: AnalysisResult;
+  isAlreadySaved?: boolean;
   onNewFile: () => void;
   onSaveSuccess?: () => void;
 }) {
-  const { filename, rows_detected: rows, analysis: payload } = analysis;
+  const filename = analysis?.filename || 'Untitled Analysis';
+  const rows = analysis?.rows_detected ?? 0;
+  
+  // Normalization guard: Handles both wrapped and unwrapped payloads cleanly
+  const payload = analysis?.analysis ?? analysis ?? {};
   const topThemes = payload.top_themes ?? [];
   const questions = payload.questions ?? [];
   const suggestions = payload.suggestions;
@@ -36,7 +42,11 @@ export function OutputView({
                 </p>
               </div>
               <div style={{ display: 'flex', gap: '12px' }}>
-                <SaveButton analysisPayload={analysis} onSaveSuccess={onSaveSuccess} />
+                <SaveButton
+                  analysisPayload={analysis}
+                  isAlreadySaved={isAlreadySaved}
+                  onSaveSuccess={onSaveSuccess}
+                />
                 <button type="button" className="btn-ghost btn-ghost--outline" onClick={onNewFile}>
                   New file
                 </button>
