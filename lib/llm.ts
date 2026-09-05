@@ -3,7 +3,7 @@ import path from 'path';
 import OpenAI from 'openai';
 import type { AnalysisPayload } from './types';
 
-const GEMINI_MODEL = 'gemini-3-flash-preview';
+const GEMINI_MODEL = 'gemini-3.5-flash-lite';
 
 const FREE_MODELS = [
   'nvidia/nemotron-3-ultra-550b-a55b:free',
@@ -111,7 +111,7 @@ async function callGeminiDirect(
         ...(responseMimeType ? { responseMimeType } : {}),
         // Disable internal thinking phase to begin immediate output streaming
         thinkingConfig: {
-          thinkingBudget: 0,
+          thinkingLevel: "MINIMAL",
         },
       },
     }),
