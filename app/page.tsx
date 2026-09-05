@@ -1,3 +1,5 @@
+'use client';
+
 import { Suspense } from 'react';
 import { AppShell } from '@/components/AppShell';
 import { ToastProvider } from '@/components/ToastProvider';

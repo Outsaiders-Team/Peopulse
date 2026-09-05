@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { UploadView } from './UploadView';
 import { OutputView } from './OutputView';
@@ -9,6 +9,8 @@ import { uploadCsv } from '@/lib/api-client';
 import { loadAnalysisResult, saveAnalysisResult } from '@/lib/storage';
 import { USE_SAMPLE_ANALYSIS, fetchSampleAnalysis } from '@/lib/sample-analysis';
 import type { AnalysisResult } from '@/lib/types';
+import { createClient } from '@/utils/supabase/client';
+import HistorySidebar from '@/components/HistorySidebar';
 
 export function AppShell() {
   const router = useRouter();
@@ -16,22 +18,95 @@ export function AppShell() {
   const showToast = useToast();
 
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
+  const [activeAnalysisId, setActiveAnalysisId] = useState<string | null>(null);
   const [restored, setRestored] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  const [history, setHistory] = useState<any[]>([]);
+  const [session, setSession] = useState<any>(null);
+
+  // Prevents React Strict Mode from executing the hydration save twice
+  const hasHydratedRef = useRef(false);
 
   const requestedView = searchParams.get('view') === 'output' ? 'output' : 'upload';
   const view = requestedView === 'output' && analysis ? 'output' : 'upload';
 
-  // Rehydrate a previous result from sessionStorage (client-only, unavailable
-  // during SSR) on refresh / back navigation.
-  useEffect(() => {
-    const stored = loadAnalysisResult();
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- syncing from an external, client-only store
-    if (stored) setAnalysis(stored);
-    setRestored(true);
+  const fetchHistory = useCallback(async () => {
+    const supabase = createClient();
+    const {
+      data: { session: activeSession },
+    } = await supabase.auth.getSession();
+    setSession(activeSession);
+
+    if (activeSession) {
+      const { data, error } = await supabase
+        .from('analyses')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (!error && data) {
+        setHistory(data);
+      }
+    }
   }, []);
 
-  // Guard: output view without a stored analysis forces the upload view.
+  useEffect(() => {
+    const stored = loadAnalysisResult();
+    if (stored) setAnalysis(stored);
+    setRestored(true);
+
+    if (hasHydratedRef.current) return;
+    hasHydratedRef.current = true;
+
+    const processPendingSave = async () => {
+      const pendingData = localStorage.getItem('pendingAnalysis');
+      if (!pendingData) {
+        fetchHistory();
+        return;
+      }
+
+      // Remove the item immediately to prevent concurrent triggers
+      localStorage.removeItem('pendingAnalysis');
+
+      const supabase = createClient();
+      const {
+        data: { session: activeSession },
+      } = await supabase.auth.getSession();
+
+      if (activeSession) {
+        try {
+          const payload = JSON.parse(pendingData);
+
+          saveAnalysisResult(payload);
+          setAnalysis(payload);
+          router.push('?view=output');
+
+          const { data, error } = await supabase
+            .from('analyses')
+            .insert({
+              user_id: activeSession.user.id,
+              payload: payload,
+            })
+            .select()
+            .single();
+
+          if (!error && data) {
+            setActiveAnalysisId(data.id);
+            showToast('Your pending analysis has been saved to your account.');
+          } else if (error) {
+            showToast(`Failed to save pending analysis: ${error.message}`);
+          }
+        } catch {
+          // Ignored if invalid JSON
+        }
+      }
+
+      fetchHistory();
+    };
+
+    processPendingSave();
+  }, [fetchHistory, router, showToast]);
+
   useEffect(() => {
     if (restored && requestedView === 'output' && !analysis) {
       router.replace('/');
@@ -55,6 +130,7 @@ export function AppShell() {
         const result = file ? await uploadCsv(file) : await fetchSampleAnalysis();
         saveAnalysisResult(result);
         setAnalysis(result);
+        setActiveAnalysisId(null);
         router.push('?view=output');
       } catch (err) {
         showToast(err instanceof Error ? err.message : 'Analysis failed');
@@ -66,12 +142,91 @@ export function AppShell() {
   );
 
   const handleNewFile = useCallback(() => {
+    setActiveAnalysisId(null);
     router.push('/');
   }, [router]);
 
-  if (view === 'output' && analysis) {
-    return <OutputView analysis={analysis} onNewFile={handleNewFile} />;
-  }
+  const handleHistorySelect = useCallback(
+    (item: any) => {
+      saveAnalysisResult(item.payload);
+      setAnalysis(item.payload);
+      setActiveAnalysisId(item.id);
+      router.push('?view=output');
+    },
+    [router]
+  );
 
-  return <UploadView loading={loading} onAnalyze={runAnalysis} />;
+  const handleDeleteSuccess = useCallback(
+    (deletedId: string) => {
+      setHistory((prev) => prev.filter((item) => item.id !== deletedId));
+      if (activeAnalysisId === deletedId) {
+        setActiveAnalysisId(null);
+        router.push('/');
+      }
+    },
+    [activeAnalysisId, router]
+  );
+
+  const handleRenameSuccess = useCallback(
+    (id: string, newFilename: string) => {
+      setHistory((prev) =>
+        prev.map((item) =>
+          item.id === id
+            ? { ...item, payload: { ...item.payload, filename: newFilename } }
+            : item
+        )
+      );
+
+      if (activeAnalysisId === id) {
+        setAnalysis((prev) => {
+          if (!prev) return prev;
+          const updated = { ...prev, filename: newFilename };
+          saveAnalysisResult(updated);
+          return updated;
+        });
+      }
+    },
+    [activeAnalysisId]
+  );
+
+  const isAlreadySaved =
+    Boolean(activeAnalysisId) ||
+    Boolean(
+      analysis &&
+        history.some(
+          (h) =>
+            h.payload?.filename === analysis?.filename &&
+            h.payload?.rows_detected === analysis?.rows_detected
+        )
+    );
+
+  return (
+    <div style={{ display: 'flex', width: '100vw', minHeight: '100vh', overflowX: 'hidden' }}>
+      {session && (
+        <HistorySidebar
+          history={history}
+          activeId={activeAnalysisId}
+          onSelect={handleHistorySelect}
+          onDeleteSuccess={handleDeleteSuccess}
+          onRenameSuccess={handleRenameSuccess}
+        />
+      )}
+
+      <main style={{ flex: 1, minWidth: 0, overflowY: 'auto' }}>
+        {view === 'output' && analysis ? (
+          <OutputView
+            analysis={analysis}
+            isAlreadySaved={isAlreadySaved}
+            onNewFile={handleNewFile}
+            onSaveSuccess={(newId?: string) => {
+              if (newId) setActiveAnalysisId(newId);
+              fetchHistory();
+            }}
+          />
+        ) : (
+          <UploadView loading={loading} onAnalyze={runAnalysis} />
+        )}
+      </main>
+    </div>
+  );
 }
