@@ -1,12 +1,26 @@
 // @ts-nocheck
 'use client';
+import SaveButton from '@/components/SaveButton';
 
 import type { AnalysisResult } from '@/lib/types';
 import { PointItems } from './PointItems';
 import { QuestionAccordionItem } from './QuestionAccordionItem';
 
-export function OutputView({ analysis, onNewFile }: { analysis: AnalysisResult; onNewFile: () => void }) {
-  const { filename, rows_detected: rows, analysis: payload } = analysis;
+export function OutputView({
+  analysis,
+  isAlreadySaved,
+  onNewFile,
+  onSaveSuccess,
+}: {
+  analysis: AnalysisResult;
+  isAlreadySaved?: boolean;
+  onNewFile: () => void;
+  onSaveSuccess?: (newId?: string) => void;
+}) {
+  const filename = analysis?.filename || 'Untitled Analysis';
+  const rows = analysis?.rows_detected ?? 0;
+
+  const payload = analysis?.analysis ?? analysis ?? {};
   const topThemes = payload.top_themes ?? [];
   const questions = payload.questions ?? [];
   const suggestions = payload.suggestions;
@@ -26,9 +40,16 @@ export function OutputView({ analysis, onNewFile }: { analysis: AnalysisResult; 
                   </span>
                 </p>
               </div>
-              <button type="button" className="btn-ghost btn-ghost--outline" onClick={onNewFile}>
-                New file
-              </button>
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <SaveButton
+                  analysisPayload={analysis}
+                  isAlreadySaved={isAlreadySaved}
+                  onSaveSuccess={onSaveSuccess}
+                />
+                <button type="button" className="btn-ghost btn-ghost--outline" onClick={onNewFile}>
+                  New file
+                </button>
+              </div>
             </header>
 
             <section className="takeaway" aria-labelledby="themes-heading">
@@ -137,6 +158,6 @@ export function OutputView({ analysis, onNewFile }: { analysis: AnalysisResult; 
           Peopulse
         </footer>
       </div>
-    </div> 
+    </div>
   );
 }
