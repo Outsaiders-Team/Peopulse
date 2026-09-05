@@ -28,10 +28,19 @@ export default function SaveButton({
     if (!session) {
       localStorage.setItem('pendingAnalysis', JSON.stringify(analysisPayload));
 
+      const origin =
+        typeof window !== 'undefined' && window.location.origin
+          ? window.location.origin
+          : 'https://peo-pulse.vercel.app';
+
       await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent('/?view=output')}`,
+          redirectTo: `${origin}/auth/callback?next=${encodeURIComponent('/?view=output')}`,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          },
         },
       });
       return;
