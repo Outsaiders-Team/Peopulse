@@ -1,6 +1,7 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
+  allowedDevOrigins: ['192.168.0.105'],
   // Ensure the system prompt ships with the serverless function bundle.
   outputFileTracingIncludes: {
     '/api/upload-csv': ['./prompts/llm_prompt.md'],
@@ -8,5 +9,7 @@ const nextConfig: NextConfig = {
   // Skip Next's auto-generated AGENTS.md/CLAUDE.md; this repo manages its own docs.
   agentRules: false,
 };
+
+
 
 export default nextConfig;

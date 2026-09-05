@@ -1,5 +1,6 @@
 // @ts-nocheck
 'use client';
+import SaveButton from '@/components/SaveButton'
 
 import type { AnalysisResult } from '@/lib/types';
 import { PointItems } from './PointItems';
@@ -26,9 +27,12 @@ export function OutputView({ analysis, onNewFile }: { analysis: AnalysisResult; 
                   </span>
                 </p>
               </div>
-              <button type="button" className="btn-ghost btn-ghost--outline" onClick={onNewFile}>
-                New file
-              </button>
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <SaveButton analysisPayload={analysis} />
+                <button type="button" className="btn-ghost btn-ghost--outline" onClick={onNewFile}>
+                  New file
+                </button>
+              </div>
             </header>
 
             <section className="takeaway" aria-labelledby="themes-heading">
