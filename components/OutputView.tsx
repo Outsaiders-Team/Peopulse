@@ -1,12 +1,20 @@
 // @ts-nocheck
 'use client';
-import SaveButton from '@/components/SaveButton'
+import SaveButton from '@/components/SaveButton';
 
 import type { AnalysisResult } from '@/lib/types';
 import { PointItems } from './PointItems';
 import { QuestionAccordionItem } from './QuestionAccordionItem';
 
-export function OutputView({ analysis, onNewFile }: { analysis: AnalysisResult; onNewFile: () => void }) {
+export function OutputView({
+  analysis,
+  onNewFile,
+  onSaveSuccess,
+}: {
+  analysis: AnalysisResult;
+  onNewFile: () => void;
+  onSaveSuccess?: () => void;
+}) {
   const { filename, rows_detected: rows, analysis: payload } = analysis;
   const topThemes = payload.top_themes ?? [];
   const questions = payload.questions ?? [];
@@ -28,7 +36,7 @@ export function OutputView({ analysis, onNewFile }: { analysis: AnalysisResult; 
                 </p>
               </div>
               <div style={{ display: 'flex', gap: '12px' }}>
-                <SaveButton analysisPayload={analysis} />
+                <SaveButton analysisPayload={analysis} onSaveSuccess={onSaveSuccess} />
                 <button type="button" className="btn-ghost btn-ghost--outline" onClick={onNewFile}>
                   New file
                 </button>
@@ -141,6 +149,6 @@ export function OutputView({ analysis, onNewFile }: { analysis: AnalysisResult; 
           Peopulse
         </footer>
       </div>
-    </div> 
+    </div>
   );
 }
