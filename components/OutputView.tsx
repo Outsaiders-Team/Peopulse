@@ -15,12 +15,11 @@ export function OutputView({
   analysis: AnalysisResult;
   isAlreadySaved?: boolean;
   onNewFile: () => void;
-  onSaveSuccess?: () => void;
+  onSaveSuccess?: (newId?: string) => void;
 }) {
   const filename = analysis?.filename || 'Untitled Analysis';
   const rows = analysis?.rows_detected ?? 0;
-  
-  // Normalization guard: Handles both wrapped and unwrapped payloads cleanly
+
   const payload = analysis?.analysis ?? analysis ?? {};
   const topThemes = payload.top_themes ?? [];
   const questions = payload.questions ?? [];

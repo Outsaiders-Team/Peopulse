@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { UploadView } from './UploadView';
 import { OutputView } from './OutputView';
@@ -24,6 +24,9 @@ export function AppShell() {
 
   const [history, setHistory] = useState<any[]>([]);
   const [session, setSession] = useState<any>(null);
+
+  // Prevents React Strict Mode from executing the hydration save twice
+  const hasHydratedRef = useRef(false);
 
   const requestedView = searchParams.get('view') === 'output' ? 'output' : 'upload';
   const view = requestedView === 'output' && analysis ? 'output' : 'upload';
@@ -52,12 +55,18 @@ export function AppShell() {
     if (stored) setAnalysis(stored);
     setRestored(true);
 
+    if (hasHydratedRef.current) return;
+    hasHydratedRef.current = true;
+
     const processPendingSave = async () => {
       const pendingData = localStorage.getItem('pendingAnalysis');
       if (!pendingData) {
         fetchHistory();
         return;
       }
+
+      // Remove the item immediately to prevent concurrent triggers
+      localStorage.removeItem('pendingAnalysis');
 
       const supabase = createClient();
       const {
@@ -81,15 +90,14 @@ export function AppShell() {
             .select()
             .single();
 
-          if (!error) {
-            localStorage.removeItem('pendingAnalysis');
-            if (data) setActiveAnalysisId(data.id);
+          if (!error && data) {
+            setActiveAnalysisId(data.id);
             showToast('Your pending analysis has been saved to your account.');
-          } else {
+          } else if (error) {
             showToast(`Failed to save pending analysis: ${error.message}`);
           }
         } catch {
-          localStorage.removeItem('pendingAnalysis');
+          // Ignored if invalid JSON
         }
       }
 
@@ -97,8 +105,7 @@ export function AppShell() {
     };
 
     processPendingSave();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [fetchHistory, router, showToast]);
 
   useEffect(() => {
     if (restored && requestedView === 'output' && !analysis) {
@@ -211,7 +218,10 @@ export function AppShell() {
             analysis={analysis}
             isAlreadySaved={isAlreadySaved}
             onNewFile={handleNewFile}
-            onSaveSuccess={fetchHistory}
+            onSaveSuccess={(newId?: string) => {
+              if (newId) setActiveAnalysisId(newId);
+              fetchHistory();
+            }}
           />
         ) : (
           <UploadView loading={loading} onAnalyze={runAnalysis} />

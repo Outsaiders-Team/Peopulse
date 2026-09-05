@@ -11,7 +11,7 @@ export default function SaveButton({
 }: {
   analysisPayload: any;
   isAlreadySaved?: boolean;
-  onSaveSuccess?: () => void;
+  onSaveSuccess?: (newId?: string) => void;
 }) {
   const showToast = useToast();
   const [saving, setSaving] = useState(false);
@@ -26,7 +26,6 @@ export default function SaveButton({
     } = await supabase.auth.getSession();
 
     if (!session) {
-      // Use localStorage so the payload safely persists across the Google OAuth redirect
       localStorage.setItem('pendingAnalysis', JSON.stringify(analysisPayload));
 
       await supabase.auth.signInWithOAuth({
@@ -38,16 +37,20 @@ export default function SaveButton({
       return;
     }
 
-    const { error } = await supabase.from('analyses').insert({
-      user_id: session.user.id,
-      payload: analysisPayload,
-    });
+    const { data, error } = await supabase
+      .from('analyses')
+      .insert({
+        user_id: session.user.id,
+        payload: analysisPayload,
+      })
+      .select()
+      .single();
 
     setSaving(false);
 
     if (!error) {
       showToast('Analysis saved successfully.');
-      onSaveSuccess?.();
+      onSaveSuccess?.(data?.id);
     } else {
       showToast(`Failed to save: ${error.message}`);
     }
