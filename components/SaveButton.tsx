@@ -26,12 +26,13 @@ export default function SaveButton({
     } = await supabase.auth.getSession();
 
     if (!session) {
-      sessionStorage.setItem('pendingAnalysis', JSON.stringify(analysisPayload));
+      // Use localStorage so the payload safely persists across the Google OAuth redirect
+      localStorage.setItem('pendingAnalysis', JSON.stringify(analysisPayload));
 
       await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
+          redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent('/?view=output')}`,
         },
       });
       return;

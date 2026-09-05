@@ -47,14 +47,13 @@ export function AppShell() {
     }
   }, []);
 
-  // Hydrate local cache and check for pending saves from OAuth redirects
   useEffect(() => {
     const stored = loadAnalysisResult();
     if (stored) setAnalysis(stored);
     setRestored(true);
 
     const processPendingSave = async () => {
-      const pendingData = sessionStorage.getItem('pendingAnalysis');
+      const pendingData = localStorage.getItem('pendingAnalysis');
       if (!pendingData) {
         fetchHistory();
         return;
@@ -66,24 +65,40 @@ export function AppShell() {
       } = await supabase.auth.getSession();
 
       if (activeSession) {
-        const payload = JSON.parse(pendingData);
-        const { error } = await supabase.from('analyses').insert({
-          user_id: activeSession.user.id,
-          payload: payload,
-        });
+        try {
+          const payload = JSON.parse(pendingData);
 
-        if (!error) {
-          sessionStorage.removeItem('pendingAnalysis');
-          showToast('Your pending analysis has been saved to your account.');
-          fetchHistory();
+          saveAnalysisResult(payload);
+          setAnalysis(payload);
+          router.push('?view=output');
+
+          const { data, error } = await supabase
+            .from('analyses')
+            .insert({
+              user_id: activeSession.user.id,
+              payload: payload,
+            })
+            .select()
+            .single();
+
+          if (!error) {
+            localStorage.removeItem('pendingAnalysis');
+            if (data) setActiveAnalysisId(data.id);
+            showToast('Your pending analysis has been saved to your account.');
+          } else {
+            showToast(`Failed to save pending analysis: ${error.message}`);
+          }
+        } catch {
+          localStorage.removeItem('pendingAnalysis');
         }
-      } else {
-        fetchHistory();
       }
+
+      fetchHistory();
     };
 
     processPendingSave();
-  }, [fetchHistory, showToast]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (restored && requestedView === 'output' && !analysis) {
@@ -145,6 +160,28 @@ export function AppShell() {
     [activeAnalysisId, router]
   );
 
+  const handleRenameSuccess = useCallback(
+    (id: string, newFilename: string) => {
+      setHistory((prev) =>
+        prev.map((item) =>
+          item.id === id
+            ? { ...item, payload: { ...item.payload, filename: newFilename } }
+            : item
+        )
+      );
+
+      if (activeAnalysisId === id) {
+        setAnalysis((prev) => {
+          if (!prev) return prev;
+          const updated = { ...prev, filename: newFilename };
+          saveAnalysisResult(updated);
+          return updated;
+        });
+      }
+    },
+    [activeAnalysisId]
+  );
+
   const isAlreadySaved =
     Boolean(activeAnalysisId) ||
     Boolean(
@@ -164,6 +201,7 @@ export function AppShell() {
           activeId={activeAnalysisId}
           onSelect={handleHistorySelect}
           onDeleteSuccess={handleDeleteSuccess}
+          onRenameSuccess={handleRenameSuccess}
         />
       )}
 

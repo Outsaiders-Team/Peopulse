@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { createClient } from '@/utils/supabase/client';
 import { useToast } from './ToastProvider';
 
@@ -8,18 +9,56 @@ export default function HistorySidebar({
   activeId,
   onSelect,
   onDeleteSuccess,
+  onRenameSuccess,
 }: {
   history: any[];
   activeId?: string | null;
   onSelect: (item: any) => void;
   onDeleteSuccess?: (deletedId: string) => void;
+  onRenameSuccess?: (id: string, newFilename: string) => void;
 }) {
   const showToast = useToast();
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState('');
 
   const handleSignOut = async () => {
     const supabase = createClient();
     await supabase.auth.signOut();
     window.location.reload();
+  };
+
+  const startRename = (e: React.MouseEvent, item: any) => {
+    e.stopPropagation();
+    setEditingId(item.id);
+    setEditTitle(item.payload?.filename || 'Untitled Analysis');
+  };
+
+  const submitRename = async (id: string, currentItem: any) => {
+    const trimmed = editTitle.trim();
+    if (!trimmed || trimmed === currentItem.payload?.filename) {
+      setEditingId(null);
+      return;
+    }
+
+    const updatedPayload = {
+      ...currentItem.payload,
+      filename: trimmed,
+    };
+
+    const supabase = createClient();
+    const { error } = await supabase
+      .from('analyses')
+      .update({ payload: updatedPayload })
+      .eq('id', id);
+
+    if (!error) {
+      showToast('Analysis renamed.');
+      onRenameSuccess?.(id, trimmed);
+    } else {
+      showToast(`Rename failed: ${error.message}`);
+    }
+
+    setEditingId(null);
   };
 
   const handleDelete = async (e: React.MouseEvent, id: string) => {
@@ -78,6 +117,8 @@ export default function HistorySidebar({
         ) : (
           history.map((item) => {
             const isActive = activeId === item.id;
+            const isEditing = editingId === item.id;
+
             return (
               <div
                 key={item.id}
@@ -108,43 +149,92 @@ export default function HistorySidebar({
                   }
                 }}
               >
-                <div style={{ overflow: 'hidden', marginRight: '8px' }}>
-                  <div
-                    style={{
-                      fontSize: '13px',
-                      fontWeight: isActive ? 600 : 500,
-                      color: '#fff',
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                    }}
-                  >
-                    {item.payload.filename || 'Untitled Analysis'}
-                  </div>
+                <div style={{ flex: 1, minWidth: 0, marginRight: '8px' }}>
+                  {isEditing ? (
+                    <input
+                      type="text"
+                      autoFocus
+                      value={editTitle}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={(e) => setEditTitle(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') submitRename(item.id, item);
+                        if (e.key === 'Escape') setEditingId(null);
+                      }}
+                      onBlur={() => submitRename(item.id, item)}
+                      style={{
+                        width: '100%',
+                        background: 'rgba(0, 0, 0, 0.3)',
+                        border: '1px solid rgba(255, 255, 255, 0.3)',
+                        borderRadius: '4px',
+                        color: '#fff',
+                        fontSize: '13px',
+                        padding: '2px 6px',
+                        outline: 'none',
+                      }}
+                    />
+                  ) : (
+                    <div
+                      style={{
+                        fontSize: '13px',
+                        fontWeight: isActive ? 600 : 500,
+                        color: '#fff',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                      }}
+                      title={item.payload?.filename || 'Untitled Analysis'}
+                    >
+                      {item.payload?.filename || 'Untitled Analysis'}
+                    </div>
+                  )}
                   <div style={{ fontSize: '11px', color: 'rgba(255, 255, 255, 0.45)', marginTop: '4px' }}>
                     {new Date(item.created_at).toLocaleDateString()}
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  title="Delete analysis"
-                  onClick={(e) => handleDelete(e, item.id)}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: 'rgba(255, 255, 255, 0.35)',
-                    fontSize: '16px',
-                    cursor: 'pointer',
-                    padding: '4px 6px',
-                    borderRadius: '4px',
-                    lineHeight: 1,
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.color = '#ff6b6b')}
-                  onMouseLeave={(e) => (e.currentTarget.style.color = 'rgba(255, 255, 255, 0.35)')}
-                >
-                  &times;
-                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+                  {!isEditing && (
+                    <button
+                      type="button"
+                      title="Rename analysis"
+                      onClick={(e) => startRename(e, item)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'rgba(255, 255, 255, 0.35)',
+                        fontSize: '12px',
+                        cursor: 'pointer',
+                        padding: '4px',
+                        borderRadius: '4px',
+                        lineHeight: 1,
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.color = '#fff')}
+                      onMouseLeave={(e) => (e.currentTarget.style.color = 'rgba(255, 255, 255, 0.35)')}
+                    >
+                      ✎
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    title="Delete analysis"
+                    onClick={(e) => handleDelete(e, item.id)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: 'rgba(255, 255, 255, 0.35)',
+                      fontSize: '16px',
+                      cursor: 'pointer',
+                      padding: '4px 6px',
+                      borderRadius: '4px',
+                      lineHeight: 1,
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.color = '#ff6b6b')}
+                    onMouseLeave={(e) => (e.currentTarget.style.color = 'rgba(255, 255, 255, 0.35)')}
+                  >
+                    &times;
+                  </button>
+                </div>
               </div>
             );
           })
