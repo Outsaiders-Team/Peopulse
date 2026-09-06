@@ -1,7 +1,11 @@
-import type { AnalysisPayload, AnalysisPoint, QuestionAnalysis, Sentiment } from './types';
+import type { AnalysisPayload, AnalysisPoint, Intensity, PulseTheme, QuestionAnalysis, Sentiment } from './types';
 
 function toSentiment(value: unknown): Sentiment {
   return value === 'negative' ? 'negative' : 'positive';
+}
+
+function toIntensity(value: unknown): Intensity {
+  return value === 'medium' || value === 'high' ? value : 'low';
 }
 
 /**
@@ -33,6 +37,34 @@ function asPointList(value: unknown): AnalysisPoint[] {
   return points;
 }
 
+function asPulseThemes(value: unknown): PulseTheme[] {
+  if (!Array.isArray(value)) return [];
+
+  const themes: PulseTheme[] = [];
+  for (const item of value) {
+    if (item == null || typeof item !== 'object') continue;
+    const record = item as Record<string, unknown>;
+    const label = String(record.label ?? '').trim();
+    const count = Number(record.count);
+    if (!label || !Number.isFinite(count) || count <= 0) continue;
+
+    const exampleResponses = Array.isArray(record.example_responses)
+      ? record.example_responses.filter((response): response is string => typeof response === 'string').slice(0, 3)
+      : [];
+    themes.push({
+      label,
+      sentiment: toSentiment(record.sentiment),
+      intensity: toIntensity(record.intensity),
+      count: Math.round(count),
+      share: 0,
+      example_responses: exampleResponses,
+    });
+  }
+
+  const totalCount = themes.reduce((sum, theme) => sum + theme.count, 0);
+  return themes.map((theme) => ({ ...theme, share: totalCount ? theme.count / totalCount : 0 }));
+}
+
 /**
  * Normalizes model output into the shape the frontend renders: a handful of
  * overall themes, plus one summary block per question. Faithful port of
@@ -40,11 +72,12 @@ function asPointList(value: unknown): AnalysisPoint[] {
  */
 export function normalizeAnalysisPayload(payload: unknown): AnalysisPayload {
   if (payload == null || typeof payload !== 'object') {
-    return { top_themes: [], questions: [] };
+    return { top_themes: [], questions: [], pulse_themes: [] };
   }
 
   const record = payload as Record<string, unknown>;
   const topThemes = asPointList(record.top_themes);
+  const pulseThemes = asPulseThemes(record.pulse_themes);
 
   const rawQuestions = Array.isArray(record.questions) ? record.questions : [];
   const questions: QuestionAnalysis[] = [];
@@ -62,5 +95,5 @@ export function normalizeAnalysisPayload(payload: unknown): AnalysisPayload {
     });
   }
 
-  return { top_themes: topThemes, questions };
+  return { top_themes: topThemes, questions, pulse_themes: pulseThemes };
 }
