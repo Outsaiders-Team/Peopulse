@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useToast } from './ToastProvider';
 import { UploadCloudIcon, FileIcon, RemoveIcon } from './icons';
 import { USE_SAMPLE_ANALYSIS } from '@/lib/sample-analysis';
+import GoogleAuthButton from './GoogleAuthButton';
 
 const ALLOWED_EXT = ['csv', 'xlsx', 'xls'];
 const MAX_BYTES = 50 * 1024 * 1024;
@@ -168,6 +169,7 @@ export function UploadView({ loading, onAnalyze }: { loading: boolean; onAnalyze
                     Upload your form export. Peopulse sums up the long text into a short summary, clear insights, and
                     the positive and negative things people said, so you don&rsquo;t have to read it all.
                   </p>
+                  <GoogleAuthButton />
                 </div>
               </section>
 
