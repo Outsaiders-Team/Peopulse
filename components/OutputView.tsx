@@ -25,6 +25,7 @@ export function OutputView({
   const topThemes = payload.top_themes ?? [];
   const questions = payload.questions ?? [];
   const suggestions = payload.suggestions;
+  const ratingMetrics = payload.rating_metrics || [];
 
   return (
     <div className="page active" id="page-output">
@@ -65,6 +66,60 @@ export function OutputView({
                 </button>
               </div>
             </header>
+
+            {/* Quantitative Scorecards */}
+            {ratingMetrics.length > 0 && (
+              <section style={{ marginBottom: '24px' }}>
+                <h2 className="section-label" style={{ marginBottom: '12px' }}>
+                  Numerical Ratings
+                </h2>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
+                  {ratingMetrics.map((rm: any, idx: number) => (
+                    <div
+                      key={idx}
+                      style={{
+                        padding: '16px',
+                        borderRadius: '12px',
+                        background: '#f8fafc',
+                        border: '1px solid #e2e8f0',
+                      }}
+                    >
+                      <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 500, marginBottom: '6px' }}>
+                        {rm.question}
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                        <span style={{ fontSize: '28px', fontWeight: 700, color: '#0f172a' }}>
+                          {rm.average}
+                        </span>
+                        <span style={{ color: '#f59e0b', fontSize: '18px' }}>★</span>
+                        <span style={{ fontSize: '12px', color: '#94a3b8' }}>
+                          / 5.0 ({rm.count} {rm.count === 1 ? 'rating' : 'ratings'})
+                        </span>
+                      </div>
+                      {rm.breakdown && (
+                        <div style={{ display: 'flex', gap: '4px', marginTop: '10px' }}>
+                          {[5, 4, 3, 2, 1].map((star) => (
+                            <div key={star} style={{ flex: 1, textAlign: 'center' }}>
+                              <div
+                                style={{
+                                  height: '4px',
+                                  borderRadius: '2px',
+                                  background: rm.breakdown[star] ? '#3b82f6' : '#e2e8f0',
+                                  marginBottom: '2px',
+                                }}
+                              />
+                              <span style={{ fontSize: '9px', color: '#64748b' }}>
+                                {star}★
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
 
             <section className="takeaway" aria-labelledby="themes-heading">
               <h2 id="themes-heading" className="section-label">

@@ -34,12 +34,24 @@ export default function HistorySidebar({
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) return;
 
-    const { data } = await supabase
+    // Fetch submission_id instead of id to count unique respondents
+    const { data, error } = await supabase
       .from('forms')
-      .select('id, title, created_at, form_responses(id)')
+      .select('id, title, created_at, form_responses(submission_id)')
       .order('created_at', { ascending: false });
 
-    if (data) setForms(data);
+    if (!error && data) {
+      const parsedForms = data.map((f: any) => {
+        const uniqueSubmissions = new Set(
+          (f.form_responses || []).map((r: any) => r.submission_id)
+        ).size;
+        return {
+          ...f,
+          responseCount: uniqueSubmissions,
+        };
+      });
+      setForms(parsedForms);
+    }
   };
 
   useEffect(() => {
@@ -144,7 +156,6 @@ export default function HistorySidebar({
         }}
       >
         <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          {/* Tabs: Analyses vs Forms */}
           <div style={{ display: 'flex', background: 'rgba(255,255,255,0.06)', borderRadius: '8px', padding: '2px' }}>
             <button
               type="button"
@@ -303,7 +314,7 @@ export default function HistorySidebar({
                         {f.title}
                       </div>
                       <div style={{ fontSize: '11px', color: 'rgba(255, 255, 255, 0.45)', marginTop: '2px' }}>
-                        {f.form_responses?.length || 0} responses
+                        {f.responseCount} {f.responseCount === 1 ? 'response' : 'responses'}
                       </div>
                     </div>
 
@@ -340,7 +351,7 @@ export default function HistorySidebar({
                           cursor: generatingId === f.id ? 'default' : 'pointer',
                         }}
                       >
-                        {generatingId === f.id ? 'Analyzing...' : '⚡ Generate'}
+                        {generatingId === f.id ? 'Analyzing...' : 'Generate'}
                       </button>
                     </div>
                   </div>

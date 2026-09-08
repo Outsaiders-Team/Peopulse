@@ -61,21 +61,53 @@ export async function POST(
 
     const uniqueSubmissions = new Set(responses.map((r) => r.submission_id)).size;
 
-    // 4. Build Record<string, string[]> expected by analyzeFeedback()
+    // 4. Compute Quantitative / Numerical Metrics
+    const ratingMetrics: {
+      question: string;
+      average: number;
+      count: number;
+      breakdown: Record<number, number>;
+    }[] = [];
+
     const feedbackByQuestion: Record<string, string[]> = {};
 
     for (const q of questions) {
-      const answers = responses
-        .filter((r) => r.question_id === q.id && r.response_value && r.response_value.trim() !== '')
-        .map((r) => {
-          if (q.question_type === 'rating') {
-            return `${r.response_value}/5 stars`;
-          }
-          return r.response_value.trim();
-        });
+      const qResponses = responses.filter(
+        (r) => r.question_id === q.id && r.response_value && r.response_value.trim() !== ''
+      );
 
-      if (answers.length > 0) {
-        feedbackByQuestion[q.question_text] = answers;
+      if (q.question_type === 'rating') {
+        const numericValues = qResponses
+          .map((r) => parseFloat(r.response_value))
+          .filter((v) => !isNaN(v));
+
+        if (numericValues.length > 0) {
+          const sum = numericValues.reduce((acc, curr) => acc + curr, 0);
+          const avg = Number((sum / numericValues.length).toFixed(1));
+
+          const breakdown: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+          numericValues.forEach((val) => {
+            const rounded = Math.round(val);
+            if (breakdown[rounded] !== undefined) breakdown[rounded]++;
+          });
+
+          ratingMetrics.push({
+            question: q.question_text,
+            average: avg,
+            count: numericValues.length,
+            breakdown,
+          });
+
+          // Feed formatted rating context into the LLM
+          feedbackByQuestion[q.question_text] = [
+            `Average rating: ${avg}/5 across ${numericValues.length} reviews. (Breakdown: ${Object.entries(breakdown).map(([k, v]) => `${k}★: ${v}`).join(', ')})`
+          ];
+        }
+      } else {
+        const textAnswers = qResponses.map((r) => r.response_value.trim());
+        if (textAnswers.length > 0) {
+          feedbackByQuestion[q.question_text] = textAnswers;
+        }
       }
     }
 
@@ -86,11 +118,11 @@ export async function POST(
       );
     }
 
-    // 5. Run primary feedback analysis
+    // 5. Run LLM Engine
     const rawAnalysisString = await analyzeFeedback(feedbackByQuestion);
     const parsedAnalysis: AnalysisPayload = JSON.parse(rawAnalysisString);
 
-    // 6. Run recommendations pipeline
+    // 6. Run Recommendations Engine
     try {
       const rawRecs = await generateRecommendations(parsedAnalysis, uniqueSubmissions);
       parsedAnalysis.suggestions = JSON.parse(rawRecs);
@@ -98,7 +130,9 @@ export async function POST(
       console.warn('Failed to generate recommendations for live form:', e);
     }
 
-    // 7. Format according to AnalysisResult schema
+    // 7. Inject quantitative metrics directly into the payload
+    (parsedAnalysis as any).rating_metrics = ratingMetrics;
+
     const result = {
       filename: `${form.title} (Live Form)`,
       rows_detected: uniqueSubmissions,
