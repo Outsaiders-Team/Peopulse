@@ -209,6 +209,12 @@ export function AppShell() {
           onSelect={handleHistorySelect}
           onDeleteSuccess={handleDeleteSuccess}
           onRenameSuccess={handleRenameSuccess}
+          onSelectFormAnalysis={(formResult) => {
+            saveAnalysisResult(formResult);
+            setAnalysis(formResult);
+            setActiveAnalysisId(null);
+            router.push('?view=output');
+          }}
         />
       )}
 
