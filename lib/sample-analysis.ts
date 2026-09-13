@@ -13,6 +13,40 @@ export const SAMPLE_ANALYSIS: AnalysisResult = {
       { text: 'Many praise recent cleanliness and drainage improvements.', sentiment: 'positive' },
       { text: 'Communication about schedule changes remains a recurring pain point.', sentiment: 'negative' },
     ],
+    pulse_themes: [
+      {
+        label: 'Faster service requests',
+        sentiment: 'positive',
+        intensity: 'medium',
+        count: 18,
+        share: 0.375,
+        example_responses: ['Simple permits are processed within the day more often.', 'The service desk is much faster now.'],
+      },
+      {
+        label: 'Delayed follow-up',
+        sentiment: 'negative',
+        intensity: 'high',
+        count: 14,
+        share: 0.2917,
+        example_responses: ['Complaint tickets take too long before anyone follows up.', 'Field repair crews miss promised dates.'],
+      },
+      {
+        label: 'Cleaner streets and drainage',
+        sentiment: 'positive',
+        intensity: 'low',
+        count: 9,
+        share: 0.1875,
+        example_responses: ['Street cleaning and drainage work has visibly improved.'],
+      },
+      {
+        label: 'Unclear schedule notices',
+        sentiment: 'negative',
+        intensity: 'medium',
+        count: 7,
+        share: 0.1458,
+        example_responses: ['Schedule changes for services are announced too late.'],
+      },
+    ],
     questions: [
       {
         question: 'What do you appreciate most about our current services?',

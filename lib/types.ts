@@ -1,5 +1,7 @@
 export type Sentiment = 'positive' | 'negative';
 
+export type Intensity = 'low' | 'medium' | 'high';
+
 export type AnalysisPoint = {
   text: string;
   sentiment: Sentiment;
@@ -31,9 +33,19 @@ export type Recommendations = {
   data_limitations: string[];
 };
 
+export type PulseTheme = {
+  label: string;
+  sentiment: Sentiment;
+  intensity: Intensity;
+  count: number;
+  share: number;
+  example_responses: string[];
+};
+
 export type AnalysisPayload = {
   top_themes: AnalysisPoint[];
   questions: QuestionAnalysis[];
+  pulse_themes: PulseTheme[];
   suggestions?: Recommendations;
 };
 

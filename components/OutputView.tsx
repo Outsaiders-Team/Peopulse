@@ -6,6 +6,7 @@ import ExportPdfButton from '@/components/ExportPdfButton';
 import type { AnalysisResult } from '@/lib/types';
 import { PointItems } from './PointItems';
 import { QuestionAccordionItem } from './QuestionAccordionItem';
+import { FeedbackPulseBubbles } from './FeedbackPulseBubbles';
 
 export function OutputView({
   analysis,
@@ -24,6 +25,7 @@ export function OutputView({
   const payload = analysis?.analysis ?? analysis ?? {};
   const topThemes = payload.top_themes ?? [];
   const questions = payload.questions ?? [];
+  const pulseThemes = payload.pulse_themes ?? [];
   const suggestions = payload.suggestions;
 
   return (
@@ -74,6 +76,10 @@ export function OutputView({
                 <PointItems points={topThemes} emptyMessage="No overall themes were returned by the model." />
               </ul>
             </section>
+
+            {pulseThemes.length > 0 && (
+              <FeedbackPulseBubbles themes={pulseThemes} totalResponses={rows} />
+            )}
 
             <section className="questions-panel" aria-labelledby="questions-heading">
               <h2 id="questions-heading" className="section-label">
